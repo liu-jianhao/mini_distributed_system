@@ -170,3 +170,24 @@ func main() {
 curl --location --request GET 'http://localhost:8010/books' \
 --data-raw ''
 ```
+
+
+## 3. 注册服务
+分布式系统需要有一个注册服务来管理所有接入的服务，如上述的日志服务和业务服务
+
+具体的代码就不贴了，老样子，在registry目录下实现注册服务，然后在test目录下测试：
+```
+# go run main.go
+```
+
+用postman模拟请求：
+```
+curl --location --request POST 'http://localhost:8020/services' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "service_name": "LogService",
+    "service_url": "localhost:8000"
+}'
+```
+
+然后可以看到终端会打印出注册服务的名字和url
