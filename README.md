@@ -113,3 +113,60 @@ curl --location --request POST 'http://localhost:8000/log' \
 [test-log] 2021/07/20 16:10:18 server.go:36: This is a test.
 [test-log] 2021/07/20 16:11:55 server.go:36: This is a test.
 ```
+
+## 2. 业务系统
+写一个业务系统——图书管理服务
+
+因为和分布式关系不是太大，所以只是很简单的实现。
+
+```go
+type BookHandler struct{}
+
+func (bh *BookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data, err := json.Marshal(bh.getAllBooks())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	_, _ = w.Write(data)
+}
+
+func (bh *BookHandler) getAllBooks() []*Book {
+	return []*Book{
+		{
+			ID:   1,
+			Name: "Go",
+		},
+		{
+			ID:   2,
+			Name: "Python",
+		},
+	}
+}
+```
+
+然后写测试代码：
+```go
+func main() {
+	hostPort := "localhost:8010"
+
+	ctx, err := service.StartService(context.Background(), hostPort, book.InitBookHandler)
+	if err != nil {
+		panic(err)
+	}
+
+	<-ctx.Done()
+}
+```
+
+运行代码：
+```
+# go run main.go
+```
+
+然后用postman发送请求：
+```
+curl --location --request GET 'http://localhost:8010/books' \
+--data-raw ''
+```
