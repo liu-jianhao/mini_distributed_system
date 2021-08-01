@@ -1,4 +1,5 @@
 # 这是一个迷你的分布式系统
+实现参考：https://www.bilibili.com/video/BV1ZU4y1577q
 
 ## 1. 日志系统
 
