@@ -191,3 +191,37 @@ curl --location --request POST 'http://localhost:8020/services' \
 ```
 
 然后可以看到终端会打印出注册服务的名字和url
+
+## 4. 服务注册
+之前只是简单实现了一个注册服务，但还没有把log服务和book服务注册进去，并做到统一管理的作用，
+接下来就实现这一部分。
+
+```go
+type Registration struct {
+	ServiceName      ServiceName   `json:"service_name"`
+	ServiceURL       string        `json:"service_url"`
+	RequiredServices []ServiceName `json:"required_services"`  // 需要的其他服务
+	ServiceUpdateURL string        `json:"service_update_url"` // 当前服务的客户端服务
+}
+```
++ 首先`Registration`结构体需要加两个字段
+    + 第一个字段是当前服务依赖的其他服务，比如book服务依赖log服务
+    + 第二个字段是当前服务的客户端服务，也就是注册服务给当前服务传递消息的URL
+  
+
+```go
+type patchEntry struct {
+    Name ServiceName
+    URL  string
+}
+
+type patch struct {
+    Added   []*patchEntry
+    Removed []*patchEntry
+}
+```
++ 然后`patch`结构体是注册服务用来添加和删除服务的结构，即全局变量`reg`
+
+
+接着在服务注册的函数里实现把patch发给服务的ServiceUpdateURL
+

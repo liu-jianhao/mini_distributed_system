@@ -17,6 +17,8 @@ func main() {
 	var srv http.Server
 	srv.Addr = registry.ServerPort
 
+	log.SetFlags(log.LstdFlags | log.Llongfile)
+
 	go func() {
 		log.Println(srv.ListenAndServe())
 		cancel()
