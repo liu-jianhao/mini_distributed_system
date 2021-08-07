@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 const ServerPort = ":8020"
@@ -28,12 +29,65 @@ func (r *registry) add(reg *Registration) error {
 		return err
 	}
 
+	r.notify(&patch{
+		Added: []*patchEntry{
+			{
+				Name: reg.ServiceName,
+				URL:  reg.ServiceURL,
+			},
+		},
+	})
+
 	return nil
+}
+
+func (r *registry) notify(pat *patch) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for _, reg := range r.registrations {
+		go func(reg *Registration) {
+			for _, reqService := range reg.RequiredServices {
+				p := patch{
+					Added:   []*patchEntry{},
+					Removed: []*patchEntry{},
+				}
+				sendUpdate := false
+				for _, added := range pat.Added {
+					if added.Name == reqService {
+						p.Added = append(p.Added, added)
+						sendUpdate = true
+					}
+				}
+				for _, removed := range pat.Removed {
+					if removed.Name == reqService {
+						p.Removed = append(p.Removed, removed)
+						sendUpdate = true
+					}
+				}
+				if sendUpdate {
+					err := r.sendPatch(p, reg.ServiceUpdateURL)
+					if err != nil {
+						log.Println(err)
+						return
+					}
+				}
+			}
+		}(reg)
+	}
 }
 
 func (r *registry) remove(url string) error {
 	for i, registration := range reg.registrations {
 		if registration.ServiceURL == url {
+			r.notify(&patch{
+				Removed: []*patchEntry{
+					{
+						Name: registration.ServiceName,
+						URL:  registration.ServiceURL,
+					},
+				},
+			})
 			r.mutex.Lock()
 			reg.registrations = append(reg.registrations[:i], reg.registrations[i+1:]...)
 			r.mutex.Unlock()
@@ -41,6 +95,47 @@ func (r *registry) remove(url string) error {
 		}
 	}
 	return fmt.Errorf("service at URL %s not found", url)
+}
+
+func (r *registry) heartbeat(t time.Duration) {
+	for {
+		var wg sync.WaitGroup
+		for _, reg := range r.registrations {
+			wg.Add(1)
+			go func(reg *Registration) {
+				defer wg.Done()
+				success := true
+				for attemps := 0; attemps < 3; attemps++ {
+					res, err := http.Get(reg.HeartbeatURL)
+					if err != nil {
+						log.Println(err)
+					} else if res.StatusCode == http.StatusOK {
+						log.Printf("Heartbeat check passed for %v", reg.ServiceName)
+						if !success {
+							_ = r.add(reg)
+						}
+						break
+					}
+					log.Printf("Heartbeat check failed for %v", reg.ServiceName)
+					if success {
+						success = false
+						_ = r.remove(reg.ServiceURL)
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}(reg)
+			wg.Wait()
+			time.Sleep(t)
+		}
+	}
+}
+
+var once sync.Once
+
+func SetupHeartbeat() {
+	once.Do(func() {
+		go reg.heartbeat(3 * time.Second)
+	})
 }
 
 func (r *registry) sendRequiredServices(reg *Registration) error {
