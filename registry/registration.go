@@ -5,6 +5,7 @@ type Registration struct {
 	ServiceURL       string        `json:"service_url"`
 	RequiredServices []ServiceName `json:"required_services"`  // 需要的其他服务
 	ServiceUpdateURL string        `json:"service_update_url"` // 当前服务的客户端服务
+	HeartbeatURL     string        `json:"heartbeat_url"`
 }
 
 type ServiceName string

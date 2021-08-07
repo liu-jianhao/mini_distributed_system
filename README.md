@@ -226,3 +226,92 @@ type patch struct {
 
 接着在服务注册的函数里实现把patch发给服务的ServiceUpdateURL
 
+## 5. 服务发现
+最后对注册服务能动态发现log服务和book服务的上线和下线
+
+例如book服务依赖log服务，当log服务上线或这下线时能通知到book服务
+
+其实在上一小节实现的sendPath函数就是做这个用处，在注册的函数里再实现一个通知的函数就行：
+```go
+func (r *registry) notify(pat *patch) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for _, reg := range r.registrations {
+		go func(reg *Registration) {
+			for _, reqService := range reg.RequiredServices {
+				p := patch{
+					Added:   []*patchEntry{},
+					Removed: []*patchEntry{},
+				}
+				sendUpdate := false
+				for _, added := range pat.Added {
+					if added.Name == reqService {
+						p.Added = append(p.Added, added)
+						sendUpdate = true
+					}
+				}
+				for _, removed := range pat.Removed {
+					if removed.Name == reqService {
+						p.Removed = append(p.Removed, removed)
+						sendUpdate = true
+					}
+				}
+				if sendUpdate {
+					err := r.sendPatch(p, reg.ServiceUpdateURL)
+					if err != nil {
+						log.Println(err)
+						return
+					}
+				}
+			}
+		}(reg)
+	}
+}
+```
+- 然后我们在add和remove函数里加上notify函数即可
+
+## 6. 心跳检测
+最后，我们实现一个心跳检测，注册服务定时去发心跳请求检测log服务和book服务的健康：
+```go
+func (r *registry) heartbeat(t time.Duration) {
+	for {
+		var wg sync.WaitGroup
+		for _, reg := range r.registrations {
+			wg.Add(1)
+			go func(reg *Registration) {
+				defer wg.Done()
+				success := true
+				for attemps := 0; attemps < 3; attemps++ {
+					res, err := http.Get(reg.HeartbeatURL)
+					if err != nil {
+						log.Println(err)
+					} else if res.StatusCode == http.StatusOK {
+						log.Printf("Heartbeat check passed for %v", reg.ServiceName)
+						if !success {
+							_ = r.add(reg)
+						}
+						break
+					}
+					log.Printf("Heartbeat check failed for %v", reg.ServiceName)
+					if success {
+						success = false
+						_ = r.remove(reg.ServiceURL)
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}(reg)
+			wg.Wait()
+			time.Sleep(t)
+		}
+	}
+}
+
+var once sync.Once
+
+func SetupHeartbeat() {
+	once.Do(func() {
+		go reg.heartbeat(3 * time.Second)
+	})
+}
+```

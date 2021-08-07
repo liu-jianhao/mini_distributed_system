@@ -16,6 +16,7 @@ func main() {
 		ServiceURL:       "http://" + hostPort,
 		RequiredServices: []registry.ServiceName{registry.LogService},
 		ServiceUpdateURL: "http://" + hostPort + "/services",
+		HeartbeatURL:     "http://" + hostPort + "/heartbeat",
 	}
 
 	ctx, err := service.StartService(context.Background(), hostPort, reg, book.InitBookHandler)

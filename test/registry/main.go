@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	registry.SetupHeartbeat()
 	http.Handle("/services", &registry.RegistryService{})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -17,7 +18,7 @@ func main() {
 	var srv http.Server
 	srv.Addr = registry.ServerPort
 
-	log.SetFlags(log.LstdFlags | log.Llongfile)
+	// log.SetFlags(log.LstdFlags | log.Llongfile)
 
 	go func() {
 		log.Println(srv.ListenAndServe())
